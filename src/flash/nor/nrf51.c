@@ -22,6 +22,8 @@
 #include "config.h"
 #endif
 
+#include <stdlib.h>
+
 #include "imp.h"
 #include <target/algorithm.h>
 #include <target/armv7m.h>
@@ -38,8 +40,6 @@
 #define NRF51_UICR_BASE_ADDR         (0x10001000)
 #define NRF51_UICR_CLENR0_ADDR       (NRF51_UICR_BASE_ADDR | 0x000)
 #define NRF51_UICR_RBPCONF_ADDR      (NRF51_UICR_BASE_ADDR | 0x004)
-
-#define NRF51_UICR_SIZE              (0x100) // TODO: This should not be hardcoded, rather it is page size as read from FICR.
 
 #define NRF51_NVMC_BASE_ADDR         (0x4001E000)
 #define NRF51_NVMC_READY_ADDR        (NRF51_NVMC_BASE_ADDR | 0x400)
@@ -63,8 +63,8 @@ struct nrf51_info {
 	struct {
 		bool probed;
 		int (*write) (struct flash_bank *bank,
-			      struct nrf51_info *chip,
-			      const uint8_t *buffer, uint32_t offset, uint32_t count);
+			          struct nrf51_info *chip,
+			          const uint8_t *buffer, uint32_t offset, uint32_t count);
 	} bank[2];
 	struct target *target;
 };
@@ -685,39 +685,53 @@ static int nrf51_uicr_flash_write(struct flash_bank *bank,
 				  const uint8_t *buffer, uint32_t offset, uint32_t count)
 {
 	int res;
-	uint8_t uicr[NRF51_UICR_SIZE];
+	uint32_t nrf51_uicr_size = chip->code_page_size;
+	uint8_t * uicr;
 	struct flash_sector *sector = &bank->sectors[0];
 
-	if ((offset + count) > NRF51_UICR_SIZE)
+	if ((offset + count) > nrf51_uicr_size)
 		return ERROR_FAIL;
+
+	uicr = calloc(nrf51_uicr_size, sizeof(uint8_t));
 
 	res = target_read_memory(bank->target,
 				 NRF51_UICR_BASE_ADDR,
 				 1,
-				 NRF51_UICR_SIZE,
+				 nrf51_uicr_size,
 				 uicr);
 
 	if (res != ERROR_OK)
+	{
+		free(uicr);
 		return res;
+	}
 
 	if (sector->is_erased != 1) {
 		res = nrf51_erase_page(bank, chip, sector);
 		if (res != ERROR_OK)
+		{
+			free(uicr);
 			return res;
+		}
 	}
 
 	res = nrf51_nvmc_write_enable(chip);
 	if (res != ERROR_OK)
-		return res;
-
-	memcpy(&uicr[offset], buffer, count);
-
-	res = nrf51_ll_flash_write(chip, NRF51_UICR_BASE_ADDR, uicr, NRF51_UICR_SIZE);
-	if (res != ERROR_OK) {
-		nrf51_nvmc_read_only(chip);
+	{
+		free(uicr);
 		return res;
 	}
 
+	memcpy(&uicr[offset], buffer, count);
+
+	res = nrf51_ll_flash_write(chip, NRF51_UICR_BASE_ADDR, uicr, nrf51_uicr_size);
+	if (res != ERROR_OK) {
+		nrf51_nvmc_read_only(chip);
+		free(uicr);
+		return res;
+	}
+
+	free(uicr);
 	return nrf51_nvmc_read_only(chip);
 }
 
