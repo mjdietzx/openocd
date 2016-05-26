@@ -899,11 +899,16 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		 "code page size: %"PRIu32"B\n"
 		 "code memory size: %"PRIu32"kB\n"
 		 "code region 0 size: %"PRIu32"kB\n"
-		 "pre-programmed code: %s\n",
+		 "pre-programmed code: %s\n"
+		 "\n[user information control block]\n\n"
+		 "code region 0 size: %"PRIu32"kB\n"
+		 "read back protection configuration: %"PRIx32"\n",
 		 ficr[0].value,
 		 ficr[1].value,
 		 (ficr[2].value == 0xFFFFFFFF) ? 0 : ficr[2].value / 1024,
-		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present");
+		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present",
+		 (uicr[0].value == 0xFFFFFFFF) ? 0 : uicr[0].value / 1024,
+		 uicr[1].value & 0xFFFF);
 
 	return ERROR_OK;
 }
