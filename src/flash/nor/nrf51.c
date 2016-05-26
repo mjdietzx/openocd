@@ -27,84 +27,36 @@
 #include <target/armv7m.h>
 #include <helper/types.h>
 
-enum {
-	NRF51_FLASH_BASE = 0x00000000,
-};
+#define NRF51_FLASH_BASE_ADDR        (0x0)
 
-enum nrf51_ficr_registers {
-	NRF51_FICR_BASE = 0x10000000, /* Factory Information Configuration Registers */
+#define NRF51_FICR_BASE_ADDR         (0x10000000)
+#define NRF51_FICR_CODEPAGESIZE_ADDR (NRF51_FICR_BASE_ADDR | 0x010)
+#define NRF51_FICR_CODESIZE_ADDR     (NRF51_FICR_BASE_ADDR | 0x014)
+#define NRF51_FICR_CLENR0_ADDR       (NRF51_FICR_BASE_ADDR | 0x028)
+#define NRF51_FICR_PPFC_ADDR         (NRF51_FICR_BASE_ADDR | 0x02C)
+#define NRF51_FICR_CONFIGID_ADDR     (NRF51_FICR_BASE_ADDR | 0x05C) // BUG: Remove this.
 
-#define NRF51_FICR_REG(offset) (NRF51_FICR_BASE + offset)
 
-	NRF51_FICR_CODEPAGESIZE		= NRF51_FICR_REG(0x010),
-	NRF51_FICR_CODESIZE		= NRF51_FICR_REG(0x014),
-	NRF51_FICR_CLENR0		= NRF51_FICR_REG(0x028),
-	NRF51_FICR_PPFC			= NRF51_FICR_REG(0x02C),
-	NRF51_FICR_NUMRAMBLOCK		= NRF51_FICR_REG(0x034),
-	NRF51_FICR_SIZERAMBLOCK0	= NRF51_FICR_REG(0x038),
-	NRF51_FICR_SIZERAMBLOCK1	= NRF51_FICR_REG(0x03C),
-	NRF51_FICR_SIZERAMBLOCK2	= NRF51_FICR_REG(0x040),
-	NRF51_FICR_SIZERAMBLOCK3	= NRF51_FICR_REG(0x044),
-	NRF51_FICR_CONFIGID		= NRF51_FICR_REG(0x05C),
-	NRF51_FICR_DEVICEID0		= NRF51_FICR_REG(0x060),
-	NRF51_FICR_DEVICEID1		= NRF51_FICR_REG(0x064),
-	NRF51_FICR_ER0			= NRF51_FICR_REG(0x080),
-	NRF51_FICR_ER1			= NRF51_FICR_REG(0x084),
-	NRF51_FICR_ER2			= NRF51_FICR_REG(0x088),
-	NRF51_FICR_ER3			= NRF51_FICR_REG(0x08C),
-	NRF51_FICR_IR0			= NRF51_FICR_REG(0x090),
-	NRF51_FICR_IR1			= NRF51_FICR_REG(0x094),
-	NRF51_FICR_IR2			= NRF51_FICR_REG(0x098),
-	NRF51_FICR_IR3			= NRF51_FICR_REG(0x09C),
-	NRF51_FICR_DEVICEADDRTYPE	= NRF51_FICR_REG(0x0A0),
-	NRF51_FICR_DEVICEADDR0		= NRF51_FICR_REG(0x0A4),
-	NRF51_FICR_DEVICEADDR1		= NRF51_FICR_REG(0x0A8),
-	NRF51_FICR_OVERRIDEN		= NRF51_FICR_REG(0x0AC),
-	NRF51_FICR_NRF_1MBIT0		= NRF51_FICR_REG(0x0B0),
-	NRF51_FICR_NRF_1MBIT1		= NRF51_FICR_REG(0x0B4),
-	NRF51_FICR_NRF_1MBIT2		= NRF51_FICR_REG(0x0B8),
-	NRF51_FICR_NRF_1MBIT3		= NRF51_FICR_REG(0x0BC),
-	NRF51_FICR_NRF_1MBIT4		= NRF51_FICR_REG(0x0C0),
-	NRF51_FICR_BLE_1MBIT0		= NRF51_FICR_REG(0x0EC),
-	NRF51_FICR_BLE_1MBIT1		= NRF51_FICR_REG(0x0F0),
-	NRF51_FICR_BLE_1MBIT2		= NRF51_FICR_REG(0x0F4),
-	NRF51_FICR_BLE_1MBIT3		= NRF51_FICR_REG(0x0F8),
-	NRF51_FICR_BLE_1MBIT4		= NRF51_FICR_REG(0x0FC),
-};
+#define NRF51_UICR_BASE_ADDR         (0x10001000)
+#define NRF51_UICR_CLENR0_ADDR       (NRF51_UICR_BASE_ADDR | 0x000)
+#define NRF51_UICR_RBPCONF_ADDR      (NRF51_UICR_BASE_ADDR | 0x004)
 
-enum nrf51_uicr_registers {
-	NRF51_UICR_BASE = 0x10001000, /* User Information
-				       * Configuration Regsters */
+#define NRF51_UICR_SIZE              (0x100) // TODO: This should not be hardcoded, rather it is page size as read from FICR.
 
-	NRF51_UICR_SIZE = 0x100,
-
-#define NRF51_UICR_REG(offset) (NRF51_UICR_BASE + offset)
-
-	NRF51_UICR_CLENR0	= NRF51_UICR_REG(0x000),
-	NRF51_UICR_RBPCONF	= NRF51_UICR_REG(0x004),
-	NRF51_UICR_XTALFREQ	= NRF51_UICR_REG(0x008),
-	NRF51_UICR_FWID		= NRF51_UICR_REG(0x010),
-};
-
-enum nrf51_nvmc_registers {
-	NRF51_NVMC_BASE = 0x4001E000, /* Non-Volatile Memory
-				       * Controller Regsters */
-
-#define NRF51_NVMC_REG(offset) (NRF51_NVMC_BASE + offset)
-
-	NRF51_NVMC_READY	= NRF51_NVMC_REG(0x400),
-	NRF51_NVMC_CONFIG	= NRF51_NVMC_REG(0x504),
-	NRF51_NVMC_ERASEPAGE	= NRF51_NVMC_REG(0x508),
-	NRF51_NVMC_ERASEALL	= NRF51_NVMC_REG(0x50C),
-	NRF51_NVMC_ERASEUICR	= NRF51_NVMC_REG(0x514),
-};
+#define NRF51_NVMC_BASE_ADDR         (0x4001E000)
+#define NRF51_NVMC_READY_ADDR        (NRF51_NVMC_BASE_ADDR | 0x400)
+#define NRF51_NVMC_CONFIG_ADDR       (NRF51_NVMC_BASE_ADDR | 0x504)
+#define NRF51_NVMC_ERASEPAGE_ADDR    (NRF51_NVMC_BASE_ADDR | 0x508)
+#define NRF51_NVMC_ERASEALL_ADDR     (NRF51_NVMC_BASE_ADDR | 0x50C)
+#define NRF51_NVMC_ERASEUICR_ADDR    (NRF51_NVMC_BASE_ADDR | 0x514)
 
 enum nrf51_nvmc_config_bits {
-	NRF51_NVMC_CONFIG_REN = 0x00,
+	NRF51_NVMC_CONFIG_REN = 0x0,
 	NRF51_NVMC_CONFIG_WEN = 0x01,
 	NRF51_NVMC_CONFIG_EEN = 0x02,
-
 };
+
+#define NRF51_NVMC_READY             (0x01)
 
 struct nrf51_info {
 	uint32_t code_page_size;
@@ -407,13 +359,13 @@ static int nrf51_wait_for_nvmc(struct nrf51_info *chip)
 	int timeout = 100;
 
 	do {
-		res = target_read_u32(chip->target, NRF51_NVMC_READY, &ready);
+		res = target_read_u32(chip->target, NRF51_NVMC_READY_ADDR, &ready);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read NVMC_READY register");
 			return res;
 		}
 
-		if (ready == 0x00000001)
+		if (ready == NRF51_NVMC_READY)
 			return ERROR_OK;
 
 		alive_sleep(1);
@@ -427,7 +379,7 @@ static int nrf51_nvmc_erase_enable(struct nrf51_info *chip)
 {
 	int res;
 	res = target_write_u32(chip->target,
-			       NRF51_NVMC_CONFIG,
+			       NRF51_NVMC_CONFIG_ADDR,
 			       NRF51_NVMC_CONFIG_EEN);
 
 	if (res != ERROR_OK) {
@@ -450,7 +402,7 @@ static int nrf51_nvmc_write_enable(struct nrf51_info *chip)
 {
 	int res;
 	res = target_write_u32(chip->target,
-			       NRF51_NVMC_CONFIG,
+			       NRF51_NVMC_CONFIG_ADDR,
 			       NRF51_NVMC_CONFIG_WEN);
 
 	if (res != ERROR_OK) {
@@ -473,7 +425,7 @@ static int nrf51_nvmc_read_only(struct nrf51_info *chip)
 {
 	int res;
 	res = target_write_u32(chip->target,
-			       NRF51_NVMC_CONFIG,
+			       NRF51_NVMC_CONFIG_ADDR,
 			       NRF51_NVMC_CONFIG_REN);
 
 	if (res != ERROR_OK) {
@@ -526,14 +478,14 @@ static int nrf51_protect_check(struct flash_bank *bank)
 	uint32_t clenr0;
 
 	/* UICR cannot be write protected so just return early */
-	if (bank->base == NRF51_UICR_BASE)
+	if (bank->base == NRF51_UICR_BASE_ADDR)
 		return ERROR_OK;
 
 	struct nrf51_info *chip = bank->driver_priv;
 
 	assert(chip != NULL);
 
-	res = target_read_u32(chip->target, NRF51_FICR_CLENR0,
+	res = target_read_u32(chip->target, NRF51_FICR_CLENR0_ADDR,
 			      &clenr0);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Couldn't read code region 0 size[FICR]");
@@ -541,7 +493,7 @@ static int nrf51_protect_check(struct flash_bank *bank)
 	}
 
 	if (clenr0 == 0xFFFFFFFF) {
-		res = target_read_u32(chip->target, NRF51_UICR_CLENR0,
+		res = target_read_u32(chip->target, NRF51_UICR_CLENR0_ADDR,
 				      &clenr0);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read code region 0 size[UICR]");
@@ -563,7 +515,7 @@ static int nrf51_protect(struct flash_bank *bank, int set, int first, int last)
 	struct nrf51_info *chip;
 
 	/* UICR cannot be write protected so just bail out early */
-	if (bank->base == NRF51_UICR_BASE)
+	if (bank->base == NRF51_UICR_BASE_ADDR)
 		return ERROR_FAIL;
 
 	res = nrf51_get_probed_chip_if_halted(bank, &chip);
@@ -575,7 +527,7 @@ static int nrf51_protect(struct flash_bank *bank, int set, int first, int last)
 		return ERROR_FAIL;
 	}
 
-	res = target_read_u32(chip->target, NRF51_FICR_PPFC,
+	res = target_read_u32(chip->target, NRF51_FICR_PPFC_ADDR,
 			      &ppfc);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Couldn't read PPFC register");
@@ -587,7 +539,7 @@ static int nrf51_protect(struct flash_bank *bank, int set, int first, int last)
 		return ERROR_FAIL;
 	}
 
-	res = target_read_u32(chip->target, NRF51_UICR_CLENR0,
+	res = target_read_u32(chip->target, NRF51_UICR_CLENR0_ADDR,
 			      &clenr0);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Couldn't read code region 0 size[UICR]");
@@ -595,7 +547,7 @@ static int nrf51_protect(struct flash_bank *bank, int set, int first, int last)
 	}
 
 	if (clenr0 == 0xFFFFFFFF) {
-		res = target_write_u32(chip->target, NRF51_UICR_CLENR0,
+		res = target_write_u32(chip->target, NRF51_UICR_CLENR0_ADDR,
 				       clenr0);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't write code region 0 size[UICR]");
@@ -617,7 +569,7 @@ static int nrf51_probe(struct flash_bank *bank)
 	int res;
 	struct nrf51_info *chip = bank->driver_priv;
 
-	res = target_read_u32(chip->target, NRF51_FICR_CONFIGID, &hwid);
+	res = target_read_u32(chip->target, NRF51_FICR_CONFIGID_ADDR, &hwid); // TODO: Remove this. HWID is not to be used in this manner and is unstable.
 	if (res != ERROR_OK) {
 		LOG_ERROR("Couldn't read CONFIGID register");
 		return res;
@@ -642,15 +594,15 @@ static int nrf51_probe(struct flash_bank *bank)
 	}
 
 
-	if (bank->base == NRF51_FLASH_BASE) {
-		res = target_read_u32(chip->target, NRF51_FICR_CODEPAGESIZE,
+	if (bank->base == NRF51_FLASH_BASE_ADDR) {
+		res = target_read_u32(chip->target, NRF51_FICR_CODEPAGESIZE_ADDR,
 				      &chip->code_page_size);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read code page size");
 			return res;
 		}
 
-		res = target_read_u32(chip->target, NRF51_FICR_CODESIZE,
+		res = target_read_u32(chip->target, NRF51_FICR_CODESIZE_ADDR,
 				      &chip->code_memory_size);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read code memory size");
@@ -684,7 +636,7 @@ static int nrf51_probe(struct flash_bank *bank)
 
 		chip->bank[0].probed = true;
 	} else {
-		bank->size = NRF51_UICR_SIZE;
+		bank->size = NRF51_UICR_SIZE; // TODO: Remove this.
 		bank->num_sectors = 1;
 		bank->sectors = calloc(bank->num_sectors,
 				       sizeof((bank->sectors)[0]));
@@ -731,7 +683,7 @@ static int nrf51_erase_all(struct nrf51_info *chip)
 {
 	LOG_DEBUG("Erasing all non-volatile memory");
 	return nrf51_nvmc_generic_erase(chip,
-					NRF51_NVMC_ERASEALL,
+					NRF51_NVMC_ERASEALL_ADDR,
 					0x00000001);
 }
 
@@ -747,9 +699,9 @@ static int nrf51_erase_page(struct flash_bank *bank,
 		return ERROR_FAIL;
 	}
 
-	if (bank->base == NRF51_UICR_BASE) {
+	if (bank->base == NRF51_UICR_BASE_ADDR) {
 		uint32_t ppfc;
-		res = target_read_u32(chip->target, NRF51_FICR_PPFC,
+		res = target_read_u32(chip->target, NRF51_FICR_PPFC_ADDR,
 				      &ppfc);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read PPFC register");
@@ -768,13 +720,13 @@ static int nrf51_erase_page(struct flash_bank *bank,
 		}
 
 		res = nrf51_nvmc_generic_erase(chip,
-					       NRF51_NVMC_ERASEUICR,
+					       NRF51_NVMC_ERASEUICR_ADDR,
 					       0x00000001);
 
 
 	} else {
 		res = nrf51_nvmc_generic_erase(chip,
-					       NRF51_NVMC_ERASEPAGE,
+					       NRF51_NVMC_ERASEPAGE_ADDR,
 					       sector->offset);
 	}
 
@@ -815,7 +767,7 @@ static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const 
 	uint32_t buffer_size = 8192;
 	struct working_area *write_algorithm;
 	struct working_area *source;
-	uint32_t address = NRF51_FLASH_BASE + offset;
+	uint32_t address = NRF51_FLASH_BASE_ADDR + offset;
 	struct reg_param reg_params[4];
 	struct armv7m_algorithm armv7m_info;
 	int retval = ERROR_OK;
@@ -1031,7 +983,7 @@ static int nrf51_uicr_flash_write(struct flash_bank *bank,
 		return ERROR_FAIL;
 
 	res = target_read_memory(bank->target,
-				 NRF51_UICR_BASE,
+				 NRF51_UICR_BASE_ADDR,
 				 1,
 				 NRF51_UICR_SIZE,
 				 uicr);
@@ -1051,7 +1003,7 @@ static int nrf51_uicr_flash_write(struct flash_bank *bank,
 
 	memcpy(&uicr[offset], buffer, count);
 
-	res = nrf51_ll_flash_write(chip, NRF51_UICR_BASE, uicr, NRF51_UICR_SIZE);
+	res = nrf51_ll_flash_write(chip, NRF51_UICR_BASE_ADDR, uicr, NRF51_UICR_SIZE);
 	if (res != ERROR_OK) {
 		nrf51_nvmc_read_only(chip);
 		return res;
@@ -1080,10 +1032,10 @@ FLASH_BANK_COMMAND_HANDLER(nrf51_flash_bank_command)
 	static struct nrf51_info *chip;
 
 	switch (bank->base) {
-	case NRF51_FLASH_BASE:
+	case NRF51_FLASH_BASE_ADDR:
 		bank->bank_number = 0;
 		break;
-	case NRF51_UICR_BASE:
+	case NRF51_UICR_BASE_ADDR:
 		bank->bank_number = 1;
 		break;
 	default:
@@ -1101,10 +1053,10 @@ FLASH_BANK_COMMAND_HANDLER(nrf51_flash_bank_command)
 	}
 
 	switch (bank->base) {
-	case NRF51_FLASH_BASE:
+	case NRF51_FLASH_BASE_ADDR:
 		chip->bank[bank->bank_number].write = nrf51_code_flash_write;
 		break;
-	case NRF51_UICR_BASE:
+	case NRF51_UICR_BASE_ADDR:
 		chip->bank[bank->bank_number].write = nrf51_uicr_flash_write;
 		break;
 	}
@@ -1121,7 +1073,7 @@ COMMAND_HANDLER(nrf51_handle_mass_erase_command)
 	struct flash_bank *bank = NULL;
 	struct target *target = get_current_target(CMD_CTX);
 
-	res = get_flash_bank_by_addr(target, NRF51_FLASH_BASE, true, &bank);
+	res = get_flash_bank_by_addr(target, NRF51_FLASH_BASE_ADDR, true, &bank);
 	if (res != ERROR_OK)
 		return res;
 
@@ -1135,7 +1087,7 @@ COMMAND_HANDLER(nrf51_handle_mass_erase_command)
 
 	uint32_t ppfc;
 
-	res = target_read_u32(target, NRF51_FICR_PPFC,
+	res = target_read_u32(target, NRF51_FICR_PPFC_ADDR,
 			      &ppfc);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Couldn't read PPFC register");
@@ -1164,7 +1116,7 @@ COMMAND_HANDLER(nrf51_handle_mass_erase_command)
 		return res;
 	}
 
-	res = get_flash_bank_by_addr(target, NRF51_UICR_BASE, true, &bank);
+	res = get_flash_bank_by_addr(target, NRF51_UICR_BASE_ADDR, true, &bank);
 	if (res != ERROR_OK)
 		return res;
 
@@ -1187,48 +1139,16 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		const uint32_t address;
 		uint32_t value;
 	} ficr[] = {
-		{ .address = NRF51_FICR_CODEPAGESIZE	},
-		{ .address = NRF51_FICR_CODESIZE	},
-		{ .address = NRF51_FICR_CLENR0		},
-		{ .address = NRF51_FICR_PPFC		},
-		{ .address = NRF51_FICR_NUMRAMBLOCK	},
-		{ .address = NRF51_FICR_SIZERAMBLOCK0	},
-		{ .address = NRF51_FICR_SIZERAMBLOCK1	},
-		{ .address = NRF51_FICR_SIZERAMBLOCK2	},
-		{ .address = NRF51_FICR_SIZERAMBLOCK3	},
-		{ .address = NRF51_FICR_CONFIGID	},
-		{ .address = NRF51_FICR_DEVICEID0	},
-		{ .address = NRF51_FICR_DEVICEID1	},
-		{ .address = NRF51_FICR_ER0		},
-		{ .address = NRF51_FICR_ER1		},
-		{ .address = NRF51_FICR_ER2		},
-		{ .address = NRF51_FICR_ER3		},
-		{ .address = NRF51_FICR_IR0		},
-		{ .address = NRF51_FICR_IR1		},
-		{ .address = NRF51_FICR_IR2		},
-		{ .address = NRF51_FICR_IR3		},
-		{ .address = NRF51_FICR_DEVICEADDRTYPE	},
-		{ .address = NRF51_FICR_DEVICEADDR0	},
-		{ .address = NRF51_FICR_DEVICEADDR1	},
-		{ .address = NRF51_FICR_OVERRIDEN	},
-		{ .address = NRF51_FICR_NRF_1MBIT0	},
-		{ .address = NRF51_FICR_NRF_1MBIT1	},
-		{ .address = NRF51_FICR_NRF_1MBIT2	},
-		{ .address = NRF51_FICR_NRF_1MBIT3	},
-		{ .address = NRF51_FICR_NRF_1MBIT4	},
-		{ .address = NRF51_FICR_BLE_1MBIT0	},
-		{ .address = NRF51_FICR_BLE_1MBIT1	},
-		{ .address = NRF51_FICR_BLE_1MBIT2	},
-		{ .address = NRF51_FICR_BLE_1MBIT3	},
-		{ .address = NRF51_FICR_BLE_1MBIT4	},
+		{ .address = NRF51_FICR_CODEPAGESIZE_ADDR	},
+		{ .address = NRF51_FICR_CODESIZE_ADDR	},
+		{ .address = NRF51_FICR_CLENR0_ADDR		},
+		{ .address = NRF51_FICR_PPFC_ADDR		},
 	}, uicr[] = {
-		{ .address = NRF51_UICR_CLENR0,		},
-		{ .address = NRF51_UICR_RBPCONF		},
-		{ .address = NRF51_UICR_XTALFREQ	},
-		{ .address = NRF51_UICR_FWID		},
+		{ .address = NRF51_UICR_CLENR0_ADDR,		},
+		{ .address = NRF51_UICR_RBPCONF_ADDR		},
 	};
 
-	for (size_t i = 0; i < ARRAY_SIZE(ficr); i++) {
+	for (size_t i = 0; i < (sizeof(ficr) / sizeof(ficr[0])); i++) {
 		res = target_read_u32(chip->target, ficr[i].address,
 				      &ficr[i].value);
 		if (res != ERROR_OK) {
@@ -1237,7 +1157,7 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		}
 	}
 
-	for (size_t i = 0; i < ARRAY_SIZE(uicr); i++) {
+	for (size_t i = 0; i < (sizeof(uicr) / sizeof(uicr[0])); i++) {
 		res = target_read_u32(chip->target, uicr[i].address,
 				      &uicr[i].value);
 		if (res != ERROR_OK) {
@@ -1251,48 +1171,11 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		 "code page size: %"PRIu32"B\n"
 		 "code memory size: %"PRIu32"kB\n"
 		 "code region 0 size: %"PRIu32"kB\n"
-		 "pre-programmed code: %s\n"
-		 "number of ram blocks: %"PRIu32"\n"
-		 "ram block 0 size: %"PRIu32"B\n"
-		 "ram block 1 size: %"PRIu32"B\n"
-		 "ram block 2 size: %"PRIu32"B\n"
-		 "ram block 3 size: %"PRIu32 "B\n"
-		 "config id: %" PRIx32 "\n"
-		 "device id: 0x%"PRIx32"%08"PRIx32"\n"
-		 "encryption root: 0x%08"PRIx32"%08"PRIx32"%08"PRIx32"%08"PRIx32"\n"
-		 "identity root: 0x%08"PRIx32"%08"PRIx32"%08"PRIx32"%08"PRIx32"\n"
-		 "device address type: 0x%"PRIx32"\n"
-		 "device address: 0x%"PRIx32"%08"PRIx32"\n"
-		 "override enable: %"PRIx32"\n"
-		 "NRF_1MBIT values: %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32"\n"
-		 "BLE_1MBIT values: %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32"\n"
-		 "\n[user information control block]\n\n"
-		 "code region 0 size: %"PRIu32"kB\n"
-		 "read back protection configuration: %"PRIx32"\n"
-		 "reset value for XTALFREQ: %"PRIx32"\n"
-		 "firmware id: 0x%04"PRIx32,
+		 "pre-programmed code: %s\n",
 		 ficr[0].value,
 		 ficr[1].value,
 		 (ficr[2].value == 0xFFFFFFFF) ? 0 : ficr[2].value / 1024,
-		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present",
-		 ficr[4].value,
-		 ficr[5].value,
-		 (ficr[6].value == 0xFFFFFFFF) ? 0 : ficr[6].value,
-		 (ficr[7].value == 0xFFFFFFFF) ? 0 : ficr[7].value,
-		 (ficr[8].value == 0xFFFFFFFF) ? 0 : ficr[8].value,
-		 ficr[9].value,
-		 ficr[10].value, ficr[11].value,
-		 ficr[12].value, ficr[13].value, ficr[14].value, ficr[15].value,
-		 ficr[16].value, ficr[17].value, ficr[18].value, ficr[19].value,
-		 ficr[20].value,
-		 ficr[21].value, ficr[22].value,
-		 ficr[23].value,
-		 ficr[24].value, ficr[25].value, ficr[26].value, ficr[27].value, ficr[28].value,
-		 ficr[29].value, ficr[30].value, ficr[31].value, ficr[32].value, ficr[33].value,
-		 (uicr[0].value == 0xFFFFFFFF) ? 0 : uicr[0].value / 1024,
-		 uicr[1].value & 0xFFFF,
-		 uicr[2].value & 0xFF,
-		 uicr[3].value & 0xFFFF);
+		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present");
 
 	return ERROR_OK;
 }
