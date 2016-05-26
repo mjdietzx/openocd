@@ -56,7 +56,6 @@ enum nrf51_nvmc_config_bits {
 
 #define NRF51_NVMC_READY             (0x01)
 
-
 struct nrf51_info {
 	uint32_t code_page_size;
 	uint32_t code_memory_size;
@@ -70,16 +69,97 @@ struct nrf51_info {
 	struct target *target;
 };
 
+static int nrf51_protect_check(struct flash_bank *bank);
+
+static int nrf51_probe(struct flash_bank *bank)
+{
+	int res;
+
+	struct nrf51_info *chip = bank->driver_priv;
+
+	if (bank->base == NRF51_FLASH_BASE_ADDR) {
+		res = target_read_u32(chip->target,
+			                  NRF51_FICR_CODEPAGESIZE_ADDR,
+				              &chip->code_page_size);
+		if (res != ERROR_OK) {
+			LOG_ERROR("Couldn't read code page size");
+			return res;
+		}
+
+		res = target_read_u32(chip->target,
+			                  NRF51_FICR_CODESIZE_ADDR,
+			                  &chip->code_memory_size); // TODO: This is only page size.
+		if (res != ERROR_OK) {
+			LOG_ERROR("Couldn't read code memory size");
+			return res;
+		}
+
+		bank->size = chip->code_memory_size * 1024;
+		bank->num_sectors = bank->size / chip->code_page_size;
+		bank->sectors = calloc(bank->num_sectors,
+				               sizeof((bank->sectors)[0]));
+		if (!bank->sectors)
+			return ERROR_FLASH_BANK_NOT_PROBED;
+
+		/* Fill out the sector information: All NRF51 sectors are the same size and
+		 * there is always a fixed number of them. */
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].size = chip->code_page_size;
+			bank->sectors[i].offset	= i * chip->code_page_size;
+
+			/* Mark as unknown. */
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = -1;
+		}
+
+		nrf51_protect_check(bank);
+
+		chip->bank[0].probed = true;
+	}
+	else {
+
+		res = target_read_u32(chip->target,
+			                  NRF51_FICR_CODEPAGESIZE_ADDR,
+				              &bank->size);
+		if (res != ERROR_OK) {
+			LOG_ERROR("Couldn't read code page size");
+			return res;
+		}
+
+		bank->num_sectors = 1;
+		bank->sectors = calloc(bank->num_sectors,
+				               sizeof((bank->sectors)[0]));
+		if (!bank->sectors)
+			return ERROR_FLASH_BANK_NOT_PROBED;
+
+		bank->sectors[0].size = bank->size;
+		bank->sectors[0].offset	= 0;
+
+		/* mark as unknown */
+		bank->sectors[0].is_erased = -1;
+		bank->sectors[0].is_protected = -1;
+
+		chip->bank[1].probed = true;
+	}
+
+	return ERROR_OK;
+}
 
 static int nrf51_bank_is_probed(struct flash_bank *bank)
 {
 	struct nrf51_info *chip = bank->driver_priv;
-
 	assert(chip != NULL);
 
 	return chip->bank[bank->bank_number].probed;
 }
-static int nrf51_probe(struct flash_bank *bank);
+
+static int nrf51_auto_probe(struct flash_bank *bank)
+{
+	if (!nrf51_bank_is_probed(bank))
+		return nrf51_probe(bank);
+	else
+		return ERROR_OK;
+}
 
 static int nrf51_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf51_info **chip)
 {
@@ -90,13 +170,7 @@ static int nrf51_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf51
 
 	*chip = bank->driver_priv;
 
-	int probed = nrf51_bank_is_probed(bank);
-	if (probed < 0)
-		return probed;
-	else if (!probed)
-		return nrf51_probe(bank);
-	else
-		return ERROR_OK;
+	return nrf51_auto_probe(bank);
 }
 
 static int nrf51_wait_for_nvmc(struct nrf51_info *chip)
@@ -118,29 +192,26 @@ static int nrf51_wait_for_nvmc(struct nrf51_info *chip)
 		alive_sleep(1);
 	} while (timeout--);
 
-	LOG_DEBUG("Timed out waiting for NVMC_READY");
+	LOG_DEBUG("Timed out waiting for the NVMC to be ready");
 	return ERROR_FLASH_BUSY;
 }
 
 static int nrf51_nvmc_erase_enable(struct nrf51_info *chip)
 {
 	int res;
-	res = target_write_u32(chip->target,
-			       NRF51_NVMC_CONFIG_ADDR,
-			       NRF51_NVMC_CONFIG_EEN);
 
-	if (res != ERROR_OK) {
-		LOG_ERROR("Failed to enable erase operation");
-		return res;
-	}
-
-	/*
-	  According to NVMC examples in Nordic SDK busy status must be
-	  checked after writing to NVMC_CONFIG
-	 */
 	res = nrf51_wait_for_nvmc(chip);
 	if (res != ERROR_OK)
-		LOG_ERROR("Erase enable did not complete");
+		return res;
+
+	res = target_write_u32(chip->target,
+			               NRF51_NVMC_CONFIG_ADDR,
+			               NRF51_NVMC_CONFIG_EEN);
+
+	if (res != ERROR_OK) {
+		LOG_ERROR("Failed to configure the NVMC for erasing");
+		return res;
+	}
 
 	return res;
 }
@@ -148,22 +219,19 @@ static int nrf51_nvmc_erase_enable(struct nrf51_info *chip)
 static int nrf51_nvmc_write_enable(struct nrf51_info *chip)
 {
 	int res;
-	res = target_write_u32(chip->target,
-			       NRF51_NVMC_CONFIG_ADDR,
-			       NRF51_NVMC_CONFIG_WEN);
 
-	if (res != ERROR_OK) {
-		LOG_ERROR("Failed to enable write operation");
-		return res;
-	}
-
-	/*
-	  According to NVMC examples in Nordic SDK busy status must be
-	  checked after writing to NVMC_CONFIG
-	 */
 	res = nrf51_wait_for_nvmc(chip);
 	if (res != ERROR_OK)
-		LOG_ERROR("Write enable did not complete");
+		return res;
+
+	res = target_write_u32(chip->target,
+			               NRF51_NVMC_CONFIG_ADDR,
+			               NRF51_NVMC_CONFIG_WEN);
+
+	if (res != ERROR_OK) {
+		LOG_ERROR("Failed to configure the NVMC for writing");
+		return res;
+	}
 
 	return res;
 }
@@ -171,52 +239,49 @@ static int nrf51_nvmc_write_enable(struct nrf51_info *chip)
 static int nrf51_nvmc_read_only(struct nrf51_info *chip)
 {
 	int res;
-	res = target_write_u32(chip->target,
-			       NRF51_NVMC_CONFIG_ADDR,
-			       NRF51_NVMC_CONFIG_REN);
 
-	if (res != ERROR_OK) {
-		LOG_ERROR("Failed to enable read-only operation");
-		return res;
-	}
-	/*
-	  According to NVMC examples in Nordic SDK busy status must be
-	  checked after writing to NVMC_CONFIG
-	 */
 	res = nrf51_wait_for_nvmc(chip);
 	if (res != ERROR_OK)
-		LOG_ERROR("Read only enable did not complete");
+		return res;
+
+	res = target_write_u32(chip->target,
+			               NRF51_NVMC_CONFIG_ADDR,
+			               NRF51_NVMC_CONFIG_REN);
+
+	if (res != ERROR_OK) {
+		LOG_ERROR("Failed to configure the NVMC for read-only");
+		return res;
+	}
 
 	return res;
 }
 
 static int nrf51_nvmc_generic_erase(struct nrf51_info *chip,
-			       uint32_t erase_register, uint32_t erase_value)
+			                        uint32_t erase_register,
+			                        uint32_t erase_value)
 {
 	int res;
 
 	res = nrf51_nvmc_erase_enable(chip);
 	if (res != ERROR_OK)
-		goto error;
+		return res;
 
 	res = target_write_u32(chip->target,
-			       erase_register,
-			       erase_value);
-	if (res != ERROR_OK)
-		goto set_read_only;
+			       		   erase_register,
+			               erase_value);
+
+	if (res != ERROR_OK) {
+		nrf51_nvmc_read_only(chip);
+		return res;
+	}	
 
 	res = nrf51_wait_for_nvmc(chip);
-	if (res != ERROR_OK)
-		goto set_read_only;
+	if (res != ERROR_OK) {
+		nrf51_nvmc_read_only(chip);
+		return res;
+	}
 
 	return nrf51_nvmc_read_only(chip);
-
-set_read_only:
-	nrf51_nvmc_read_only(chip);
-error:
-	LOG_ERROR("Failed to erase reg: 0x%08"PRIx32" val: 0x%08"PRIx32,
-		  erase_register, erase_value);
-	return ERROR_FAIL;
 }
 
 static int nrf51_protect_check(struct flash_bank *bank)
@@ -310,100 +375,16 @@ static int nrf51_protect(struct flash_bank *bank, int set, int first, int last)
 	return ERROR_OK;
 }
 
-static int nrf51_probe(struct flash_bank *bank)
-{
-	int res;
-
-	struct nrf51_info *chip = bank->driver_priv;
-
-	if (bank->base == NRF51_FLASH_BASE_ADDR) {
-		res = target_read_u32(chip->target,
-			                  NRF51_FICR_CODEPAGESIZE_ADDR,
-				              &chip->code_page_size);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read code page size");
-			return res;
-		}
-
-		res = target_read_u32(chip->target,
-			                  NRF51_FICR_CODESIZE_ADDR,
-			                  &chip->code_memory_size); // TODO: This is only page size.
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read code memory size");
-			return res;
-		}
-
-		bank->size = chip->code_memory_size * 1024;
-		bank->num_sectors = bank->size / chip->code_page_size;
-		bank->sectors = calloc(bank->num_sectors,
-				               sizeof((bank->sectors)[0]));
-		if (!bank->sectors)
-			return ERROR_FLASH_BANK_NOT_PROBED;
-
-		/* Fill out the sector information: All NRF51 sectors are the same size and
-		 * there is always a fixed number of them. */
-		for (int i = 0; i < bank->num_sectors; i++) {
-			bank->sectors[i].size = chip->code_page_size;
-			bank->sectors[i].offset	= i * chip->code_page_size;
-
-			/* Mark as unknown. */
-			bank->sectors[i].is_erased = -1;
-			bank->sectors[i].is_protected = -1;
-		}
-
-		nrf51_protect_check(bank);
-
-		chip->bank[0].probed = true;
-	}
-	else {
-
-		res = target_read_u32(chip->target,
-			                  NRF51_FICR_CODEPAGESIZE_ADDR,
-				              &bank->size);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read code page size");
-			return res;
-		}
-
-		bank->num_sectors = 1;
-		bank->sectors = calloc(bank->num_sectors,
-				               sizeof((bank->sectors)[0]));
-		if (!bank->sectors)
-			return ERROR_FLASH_BANK_NOT_PROBED;
-
-		bank->sectors[0].size = bank->size;
-		bank->sectors[0].offset	= 0;
-
-		/* mark as unknown */
-		bank->sectors[0].is_erased = -1;
-		bank->sectors[0].is_protected = -1;
-
-		chip->bank[1].probed = true;
-	}
-
-	return ERROR_OK;
-}
-
-static int nrf51_auto_probe(struct flash_bank *bank)
-{
-	int probed = nrf51_bank_is_probed(bank);
-
-	if (probed < 0)
-		return probed;
-	else if (probed)
-		return ERROR_OK;
-	else
-		return nrf51_probe(bank);
-}
-
 static struct flash_sector *nrf51_find_sector_by_address(struct flash_bank *bank, uint32_t address)
 {
 	struct nrf51_info *chip = bank->driver_priv;
 
 	for (int i = 0; i < bank->num_sectors; i++)
-		if (bank->sectors[i].offset <= address &&
-		    address < (bank->sectors[i].offset + chip->code_page_size))
+		if (bank->sectors[i].offset <= address && 
+			address < (bank->sectors[i].offset + chip->code_page_size)) {
 			return &bank->sectors[i];
+		}
+
 	return NULL;
 }
 
@@ -411,8 +392,8 @@ static int nrf51_erase_all(struct nrf51_info *chip)
 {
 	LOG_DEBUG("Erasing all non-volatile memory");
 	return nrf51_nvmc_generic_erase(chip,
-					NRF51_NVMC_ERASEALL_ADDR,
-					0x00000001);
+					                NRF51_NVMC_ERASEALL_ADDR,
+					                0x01);
 }
 
 static int nrf51_erase_page(struct flash_bank *bank,
@@ -945,6 +926,6 @@ struct flash_driver nrf51_flash = {
 	.read			= default_flash_read,
 	.probe			= nrf51_probe,
 	.auto_probe		= nrf51_auto_probe,
-	.erase_check		= default_flash_blank_check,
-	.protect_check		= nrf51_protect_check,
+	.erase_check	= default_flash_blank_check,
+	.protect_check	= nrf51_protect_check,
 };
