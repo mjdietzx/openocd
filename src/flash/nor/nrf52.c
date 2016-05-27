@@ -158,20 +158,6 @@ static int nrf52_auto_probe(struct flash_bank *bank)
 		return ERROR_OK;
 }
 
-// TODO: look into this function and where and why it is used...
-static int nrf52_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf52_info **chip)
-{
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
-
-	*chip = bank->driver_priv;
-	assert(chip != NULL);
-
-	return nrf52_auto_probe(bank);
-}
-
 static int nrf52_wait_for_nvmc(struct nrf52_info *chip)
 {
 	int res;
@@ -273,13 +259,13 @@ static int nrf52_nvmc_generic_erase(struct nrf52_info *chip,
 
 static int nrf52_protect_check(struct flash_bank *bank)
 {
-	LOG_ERROR("Not currently implemented for nRF52");
+	LOG_WARNING("nrf52_protect_check() is not currently implemented for nRF52");
 	return ERROR_OK;
 }
 
 static int nrf52_protect(struct flash_bank *bank, int set, int first, int last)
 {
-	LOG_ERROR("Not currently implemented for nRF52");
+	LOG_WARNING("nrf52_protect() is not currently implemented for nRF52");
 	return ERROR_OK;
 }
 
@@ -312,7 +298,7 @@ static int nrf52_erase_page(struct flash_bank *bank,
 	int res;
 
 	LOG_DEBUG("Erasing page at 0x%"PRIx32, sector->offset);
-	if (sector->is_protected) {
+	if (sector->is_protected == 1) {
 		LOG_ERROR("Cannot erase protected sector at 0x%" PRIx32, sector->offset);
 		return ERROR_FAIL;
 	}
@@ -470,7 +456,7 @@ static int nrf52_write_pages(struct flash_bank *bank, uint32_t start, uint32_t e
 			return ERROR_FLASH_SECTOR_INVALID;
 		}
 
-		if (sector->is_protected) {
+		if (sector->is_protected == 1) {
 			LOG_ERROR("Can't erase protected sector @ 0x%08"PRIx32, offset);
 			return ERROR_FAIL;
 		}
@@ -498,12 +484,9 @@ static int nrf52_write_pages(struct flash_bank *bank, uint32_t start, uint32_t e
 
 static int nrf52_erase(struct flash_bank *bank, int first, int last)
 {
-	int res;
-	struct nrf52_info *chip;
-
-	res = nrf52_get_probed_chip_if_halted(bank, &chip);
-	if (res != ERROR_OK)
-		return res;
+	int res = ERROR_OK;
+	struct nrf52_info *chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	/* For each sector to be erased */
 	for (int s = first; s <= last && res == ERROR_OK; s++)
@@ -622,12 +605,8 @@ static int nrf52_uicr_flash_write(struct flash_bank *bank,
 static int nrf52_write(struct flash_bank *bank, const uint8_t *buffer,
 		       uint32_t offset, uint32_t count)
 {
-	int res;
-	struct nrf52_info *chip;
-
-	res = nrf52_get_probed_chip_if_halted(bank, &chip);
-	if (res != ERROR_OK)
-		return res;
+	struct nrf52_info *chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	return chip->bank[bank->bank_number].write(bank, chip, buffer, offset, count);
 }
@@ -685,11 +664,8 @@ COMMAND_HANDLER(nrf52_handle_mass_erase_command)
 
 	assert(bank != NULL);
 
-	struct nrf52_info *chip;
-
-	res = nrf52_get_probed_chip_if_halted(bank, &chip);
-	if (res != ERROR_OK)
-		return res;
+	struct nrf52_info *chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	res = nrf52_erase_all(chip);
 	if (res != ERROR_OK) {
@@ -719,11 +695,8 @@ COMMAND_HANDLER(nrf52_handle_mass_erase_command)
 static int nrf52_info(struct flash_bank *bank, char *buf, int buf_size)
 {
 	int res;
-	struct nrf52_info *chip;
-
-	res = nrf52_get_probed_chip_if_halted(bank, &chip); // TODO: Why do we need this function call?
-	if (res != ERROR_OK)
-		return res;
+	struct nrf52_info *chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	static struct { // TODO: Clean this up.
 		const uint32_t address;
