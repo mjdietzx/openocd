@@ -171,6 +171,7 @@ static int nrf51_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf51
 	}
 
 	*chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	return nrf51_auto_probe(bank);
 }
@@ -296,7 +297,6 @@ static int nrf51_protect_check(struct flash_bank *bank)
 		return ERROR_OK;
 
 	struct nrf51_info *chip = bank->driver_priv;
-
 	assert(chip != NULL);
 
 	res = target_read_u32(chip->target, NRF51_FICR_CLENR0_ADDR,
@@ -380,6 +380,7 @@ static int nrf51_protect(struct flash_bank *bank, int set, int first, int last)
 static struct flash_sector *nrf51_find_sector_by_address(struct flash_bank *bank, uint32_t address)
 {
 	struct nrf51_info *chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	for (int i = 0; i < bank->num_sectors; i++)
 		if (bank->sectors[i].offset <= address && 
@@ -437,8 +438,8 @@ static int nrf51_erase_page(struct flash_bank *bank,
 
 	} else {
 		res = nrf51_nvmc_generic_erase(chip,
-					       NRF51_NVMC_ERASEPAGE_ADDR,
-					       sector->offset);
+					                   NRF51_NVMC_ERASEPAGE_ADDR,
+					                   sector->offset);
 	}
 
 	if (res == ERROR_OK)
@@ -568,9 +569,11 @@ static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const 
 static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t end, const uint8_t *buffer)
 {
 	int res = ERROR_FAIL;
-	struct nrf51_info *chip = bank->driver_priv;
 	struct flash_sector *sector;
 	uint32_t offset;
+
+	struct nrf51_info *chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	assert(start % chip->code_page_size == 0);
 	assert(end % chip->code_page_size == 0);
