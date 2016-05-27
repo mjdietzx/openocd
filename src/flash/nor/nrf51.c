@@ -210,7 +210,6 @@ static int nrf51_nvmc_erase_enable(struct nrf51_info *chip)
 	res = target_write_u32(chip->target,
 			               NRF51_NVMC_CONFIG_ADDR,
 			               NRF51_NVMC_CONFIG_EEN);
-
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to configure the NVMC for erasing");
 		return res;
@@ -230,7 +229,6 @@ static int nrf51_nvmc_write_enable(struct nrf51_info *chip)
 	res = target_write_u32(chip->target,
 			               NRF51_NVMC_CONFIG_ADDR,
 			               NRF51_NVMC_CONFIG_WEN);
-
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to configure the NVMC for writing");
 		return res;
@@ -250,7 +248,6 @@ static int nrf51_nvmc_read_only(struct nrf51_info *chip)
 	res = target_write_u32(chip->target,
 			               NRF51_NVMC_CONFIG_ADDR,
 			               NRF51_NVMC_CONFIG_REN);
-
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to configure the NVMC for read-only");
 		return res;
@@ -272,17 +269,8 @@ static int nrf51_nvmc_generic_erase(struct nrf51_info *chip,
 	res = target_write_u32(chip->target,
 			       		   erase_register,
 			               erase_value);
-
-	if (res != ERROR_OK) { // TODO: This error checking is not very helpful...
-		nrf51_nvmc_read_only(chip);
-		return res;
-	}	
-
-	res = nrf51_wait_for_nvmc(chip);
-	if (res != ERROR_OK) {
-		nrf51_nvmc_read_only(chip);
-		return res;
-	}
+	if (res != ERROR_OK)
+		LOG_ERROR("Failed to write NVMC erase register");
 
 	return nrf51_nvmc_read_only(chip);
 }
@@ -563,12 +551,12 @@ static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const 
 	return retval;
 }
 
-/* Check and erase flash sectors in specified range then start a low level page write.
+/* Check and erase flash sectors in specified range, then start a low level page write.
    start/end must be sector aligned.
 */
 static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t end, const uint8_t *buffer)
 {
-	int res = ERROR_FAIL;
+	int res;
 	struct flash_sector *sector;
 	uint32_t offset;
 
@@ -581,21 +569,22 @@ static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t e
 	/* Erase all sectors */
 	for (offset = start; offset < end; offset += chip->code_page_size) {
 		sector = nrf51_find_sector_by_address(bank, offset);
-		if (!sector) {
+		
+		if (sector == NULL) {
 			LOG_ERROR("Invalid sector @ 0x%08"PRIx32, offset);
 			return ERROR_FLASH_SECTOR_INVALID;
 		}
 
 		if (sector->is_protected) {
 			LOG_ERROR("Can't erase protected sector @ 0x%08"PRIx32, offset);
-			goto error;
+			return ERROR_FAIL;
 		}
 
 		if (sector->is_erased != 1) {	/* 1 = erased, 0= not erased, -1 = unknown */
 			res = nrf51_erase_page(bank, chip, sector);
 			if (res != ERROR_OK) {
 				LOG_ERROR("Failed to erase sector @ 0x%08"PRIx32, sector->offset);
-				goto error;
+				return res;
 			}
 		}
 		sector->is_erased = 0;
@@ -603,19 +592,13 @@ static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t e
 
 	res = nrf51_nvmc_write_enable(chip);
 	if (res != ERROR_OK)
-		goto error;
+		return res;
 
 	res = nrf51_ll_flash_write(chip, start, buffer, (end - start));
 	if (res != ERROR_OK)
-		goto set_read_only;
+		LOG_ERROR("Failed to write FLASH");
 
 	return nrf51_nvmc_read_only(chip);
-
-set_read_only:
-	nrf51_nvmc_read_only(chip);
-error:
-	LOG_ERROR("Failed to write to nrf51 flash");
-	return res;
 }
 
 static int nrf51_erase(struct flash_bank *bank, int first, int last)
