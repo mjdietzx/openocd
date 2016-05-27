@@ -30,64 +30,60 @@
 #include <helper/types.h>
 
 /* nRF5 Register addresses. */
-#define NRF51_FLASH_BASE_ADDR        (0x0)
+#define NRF52_FLASH_BASE_ADDR        (0x0)
 
-#define NRF51_FICR_BASE_ADDR         (0x10000000)
-#define NRF51_FICR_CODEPAGESIZE_ADDR (NRF51_FICR_BASE_ADDR | 0x010)
-#define NRF51_FICR_CODESIZE_ADDR     (NRF51_FICR_BASE_ADDR | 0x014)
-#define NRF51_FICR_CLENR0_ADDR       (NRF51_FICR_BASE_ADDR | 0x028)
-#define NRF51_FICR_PPFC_ADDR         (NRF51_FICR_BASE_ADDR | 0x02C)
+#define NRF52_FICR_BASE_ADDR         (0x10000000)
+#define NRF52_FICR_CODEPAGESIZE_ADDR (NRF52_FICR_BASE_ADDR | 0x010)
+#define NRF52_FICR_CODESIZE_ADDR     (NRF52_FICR_BASE_ADDR | 0x014)
 
-#define NRF51_UICR_BASE_ADDR         (0x10001000)
-#define NRF51_UICR_CLENR0_ADDR       (NRF51_UICR_BASE_ADDR | 0x000)
-#define NRF51_UICR_RBPCONF_ADDR      (NRF51_UICR_BASE_ADDR | 0x004)
+#define NRF52_UICR_BASE_ADDR         (0x10001000)
 
-#define NRF51_NVMC_BASE_ADDR         (0x4001E000)
-#define NRF51_NVMC_READY_ADDR        (NRF51_NVMC_BASE_ADDR | 0x400)
-#define NRF51_NVMC_CONFIG_ADDR       (NRF51_NVMC_BASE_ADDR | 0x504)
-#define NRF51_NVMC_ERASEPAGE_ADDR    (NRF51_NVMC_BASE_ADDR | 0x508)
-#define NRF51_NVMC_ERASEALL_ADDR     (NRF51_NVMC_BASE_ADDR | 0x50C)
-#define NRF51_NVMC_ERASEUICR_ADDR    (NRF51_NVMC_BASE_ADDR | 0x514)
+#define NRF52_NVMC_BASE_ADDR         (0x4001E000)
+#define NRF52_NVMC_READY_ADDR        (NRF52_NVMC_BASE_ADDR | 0x400)
+#define NRF52_NVMC_CONFIG_ADDR       (NRF52_NVMC_BASE_ADDR | 0x504)
+#define NRF52_NVMC_ERASEPAGE_ADDR    (NRF52_NVMC_BASE_ADDR | 0x508)
+#define NRF52_NVMC_ERASEALL_ADDR     (NRF52_NVMC_BASE_ADDR | 0x50C)
+#define NRF52_NVMC_ERASEUICR_ADDR    (NRF52_NVMC_BASE_ADDR | 0x514)
 
 /* nRF5 bit fields. */
-enum nrf51_nvmc_config_bits {
-	NRF51_NVMC_CONFIG_REN = 0x0,
-	NRF51_NVMC_CONFIG_WEN = 0x01,
-	NRF51_NVMC_CONFIG_EEN = 0x02
+enum nrf52_nvmc_config_bits {
+	NRF52_NVMC_CONFIG_REN = 0x0,
+	NRF52_NVMC_CONFIG_WEN = 0x01,
+	NRF52_NVMC_CONFIG_EEN = 0x02
 };
 
-enum nrf51_nvmc_ready_bits {
-	NRF51_NVMC_BUSY  = 0x0,
-	NRF51_NVMC_READY = 0x01
+enum nrf52_nvmc_ready_bits {
+	NRF52_NVMC_BUSY  = 0x0,
+	NRF52_NVMC_READY = 0x01
 };
 
 /* nRF5 state information. */
-struct nrf51_info {
+struct nrf52_info {
 	uint32_t code_page_size; /* Size of FLASH page in bytes. */
 	uint32_t code_memory_size; /* Size of Code FLASH region = code_page_size * NUMBER_OF_PAGES_IN_CODE_FLASH. */
 
 	struct {
 		bool probed;
 		int (*write) (struct flash_bank *bank,
-			          struct nrf51_info *chip,
+			          struct nrf52_info *chip,
 			          const uint8_t *buffer, uint32_t offset, uint32_t count);
 	} bank[2]; /* There are two regions in nRF5 FLASH - Code and UICR. */
 	struct target *target;
 };
 
 
-static int nrf51_protect_check(struct flash_bank *bank);
+static int nrf52_protect_check(struct flash_bank *bank);
 
-static int nrf51_probe(struct flash_bank *bank)
+static int nrf52_probe(struct flash_bank *bank)
 {
 	int res;
 	uint32_t number_of_pages_in_code_flash;
 	
-	struct nrf51_info *chip = bank->driver_priv;
+	struct nrf52_info *chip = bank->driver_priv;
 	assert(chip != NULL);
 
 	res = target_read_u32(chip->target,
-			              NRF51_FICR_CODEPAGESIZE_ADDR,
+			              NRF52_FICR_CODEPAGESIZE_ADDR,
 				          &chip->code_page_size);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Couldn't read code page size");
@@ -95,7 +91,7 @@ static int nrf51_probe(struct flash_bank *bank)
 	}
 
 	res = target_read_u32(chip->target,
-			              NRF51_FICR_CODESIZE_ADDR,
+			              NRF52_FICR_CODESIZE_ADDR,
 			              &number_of_pages_in_code_flash);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Couldn't read code memory size");
@@ -104,7 +100,7 @@ static int nrf51_probe(struct flash_bank *bank)
 
 	chip->code_memory_size = chip->code_page_size * number_of_pages_in_code_flash;
 
-	if (bank->base == NRF51_FLASH_BASE_ADDR) {
+	if (bank->base == NRF52_FLASH_BASE_ADDR) {
 		bank->size = chip->code_memory_size;
 		bank->num_sectors = bank->size / chip->code_page_size;
 		bank->sectors = calloc(bank->num_sectors,
@@ -122,7 +118,7 @@ static int nrf51_probe(struct flash_bank *bank)
 			bank->sectors[i].is_protected = -1;
 		}
 
-		nrf51_protect_check(bank);
+		nrf52_protect_check(bank);
 
 		chip->bank[0].probed = true;
 	}
@@ -146,24 +142,24 @@ static int nrf51_probe(struct flash_bank *bank)
 	return ERROR_OK;
 }
 
-static int nrf51_bank_is_probed(struct flash_bank *bank)
+static int nrf52_bank_is_probed(struct flash_bank *bank)
 {
-	struct nrf51_info *chip = bank->driver_priv;
+	struct nrf52_info *chip = bank->driver_priv;
 	assert(chip != NULL);
 
 	return chip->bank[bank->bank_number].probed;
 }
 
-static int nrf51_auto_probe(struct flash_bank *bank)
+static int nrf52_auto_probe(struct flash_bank *bank)
 {
-	if (!nrf51_bank_is_probed(bank))
-		return nrf51_probe(bank);
+	if (!nrf52_bank_is_probed(bank))
+		return nrf52_probe(bank);
 	else
 		return ERROR_OK;
 }
 
 // TODO: look into this function and where and why it is used...
-static int nrf51_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf51_info **chip)
+static int nrf52_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf52_info **chip)
 {
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -173,23 +169,23 @@ static int nrf51_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf51
 	*chip = bank->driver_priv;
 	assert(chip != NULL);
 
-	return nrf51_auto_probe(bank);
+	return nrf52_auto_probe(bank);
 }
 
-static int nrf51_wait_for_nvmc(struct nrf51_info *chip)
+static int nrf52_wait_for_nvmc(struct nrf52_info *chip)
 {
 	int res;
 	uint32_t ready;
 	int timeout = 100;
 
 	do {
-		res = target_read_u32(chip->target, NRF51_NVMC_READY_ADDR, &ready);
+		res = target_read_u32(chip->target, NRF52_NVMC_READY_ADDR, &ready);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read NVMC_READY register");
 			return res;
 		}
 
-		if (ready == NRF51_NVMC_READY)
+		if (ready == NRF52_NVMC_READY)
 			return ERROR_OK;
 
 		alive_sleep(1);
@@ -199,17 +195,17 @@ static int nrf51_wait_for_nvmc(struct nrf51_info *chip)
 	return ERROR_FLASH_BUSY;
 }
 
-static int nrf51_nvmc_erase_enable(struct nrf51_info *chip)
+static int nrf52_nvmc_erase_enable(struct nrf52_info *chip)
 {
 	int res;
 
-	res = nrf51_wait_for_nvmc(chip);
+	res = nrf52_wait_for_nvmc(chip);
 	if (res != ERROR_OK)
 		return res;
 
 	res = target_write_u32(chip->target,
-			               NRF51_NVMC_CONFIG_ADDR,
-			               NRF51_NVMC_CONFIG_EEN);
+			               NRF52_NVMC_CONFIG_ADDR,
+			               NRF52_NVMC_CONFIG_EEN);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to configure the NVMC for erasing");
 		return res;
@@ -218,17 +214,17 @@ static int nrf51_nvmc_erase_enable(struct nrf51_info *chip)
 	return res;
 }
 
-static int nrf51_nvmc_write_enable(struct nrf51_info *chip)
+static int nrf52_nvmc_write_enable(struct nrf52_info *chip)
 {
 	int res;
 
-	res = nrf51_wait_for_nvmc(chip);
+	res = nrf52_wait_for_nvmc(chip);
 	if (res != ERROR_OK)
 		return res;
 
 	res = target_write_u32(chip->target,
-			               NRF51_NVMC_CONFIG_ADDR,
-			               NRF51_NVMC_CONFIG_WEN);
+			               NRF52_NVMC_CONFIG_ADDR,
+			               NRF52_NVMC_CONFIG_WEN);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to configure the NVMC for writing");
 		return res;
@@ -237,17 +233,17 @@ static int nrf51_nvmc_write_enable(struct nrf51_info *chip)
 	return res;
 }
 
-static int nrf51_nvmc_read_only(struct nrf51_info *chip)
+static int nrf52_nvmc_read_only(struct nrf52_info *chip)
 {
 	int res;
 
-	res = nrf51_wait_for_nvmc(chip);
+	res = nrf52_wait_for_nvmc(chip);
 	if (res != ERROR_OK)
 		return res;
 
 	res = target_write_u32(chip->target,
-			               NRF51_NVMC_CONFIG_ADDR,
-			               NRF51_NVMC_CONFIG_REN);
+			               NRF52_NVMC_CONFIG_ADDR,
+			               NRF52_NVMC_CONFIG_REN);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to configure the NVMC for read-only");
 		return res;
@@ -256,13 +252,13 @@ static int nrf51_nvmc_read_only(struct nrf51_info *chip)
 	return res;
 }
 
-static int nrf51_nvmc_generic_erase(struct nrf51_info *chip,
+static int nrf52_nvmc_generic_erase(struct nrf52_info *chip,
 			                        uint32_t erase_register,
 			                        uint32_t erase_value)
 {
 	int res;
 
-	res = nrf51_nvmc_erase_enable(chip);
+	res = nrf52_nvmc_erase_enable(chip);
 	if (res != ERROR_OK)
 		return res;
 
@@ -272,102 +268,24 @@ static int nrf51_nvmc_generic_erase(struct nrf51_info *chip,
 	if (res != ERROR_OK)
 		LOG_ERROR("Failed to write NVMC erase register");
 
-	return nrf51_nvmc_read_only(chip);
+	return nrf52_nvmc_read_only(chip);
 }
 
-static int nrf51_protect_check(struct flash_bank *bank)
+static int nrf52_protect_check(struct flash_bank *bank)
 {
-	int res;
-	uint32_t clenr0;
-
-	/* UICR cannot be write protected so just return early */
-	if (bank->base == NRF51_UICR_BASE_ADDR)
-		return ERROR_OK;
-
-	struct nrf51_info *chip = bank->driver_priv;
-	assert(chip != NULL);
-
-	res = target_read_u32(chip->target, NRF51_FICR_CLENR0_ADDR,
-			      &clenr0);
-	if (res != ERROR_OK) {
-		LOG_ERROR("Couldn't read code region 0 size[FICR]");
-		return res;
-	}
-
-	if (clenr0 == 0xFFFFFFFF) {
-		res = target_read_u32(chip->target, NRF51_UICR_CLENR0_ADDR,
-				      &clenr0);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read code region 0 size[UICR]");
-			return res;
-		}
-	}
-
-	for (int i = 0; i < bank->num_sectors; i++)
-		bank->sectors[i].is_protected =
-			clenr0 != 0xFFFFFFFF && bank->sectors[i].offset < clenr0;
-
+	LOG_ERROR("Not currently implemented for nRF52");
 	return ERROR_OK;
 }
 
-static int nrf51_protect(struct flash_bank *bank, int set, int first, int last)
+static int nrf52_protect(struct flash_bank *bank, int set, int first, int last)
 {
-	int res;
-	uint32_t clenr0, ppfc;
-	struct nrf51_info *chip;
-
-	/* UICR cannot be write protected so just bail out early */
-	if (bank->base == NRF51_UICR_BASE_ADDR)
-		return ERROR_FAIL;
-
-	res = nrf51_get_probed_chip_if_halted(bank, &chip);
-	if (res != ERROR_OK)
-		return res;
-
-	if (first != 0) {
-		LOG_ERROR("Code region 0 must start at the begining of the bank");
-		return ERROR_FAIL;
-	}
-
-	res = target_read_u32(chip->target, NRF51_FICR_PPFC_ADDR,
-			      &ppfc);
-	if (res != ERROR_OK) {
-		LOG_ERROR("Couldn't read PPFC register");
-		return res;
-	}
-
-	if ((ppfc & 0xFF) == 0x00) {
-		LOG_ERROR("Code region 0 size was pre-programmed at the factory, can't change flash protection settings");
-		return ERROR_FAIL;
-	}
-
-	res = target_read_u32(chip->target, NRF51_UICR_CLENR0_ADDR,
-			      &clenr0);
-	if (res != ERROR_OK) {
-		LOG_ERROR("Couldn't read code region 0 size[UICR]");
-		return res;
-	}
-
-	if (clenr0 == 0xFFFFFFFF) {
-		res = target_write_u32(chip->target, NRF51_UICR_CLENR0_ADDR,
-				       clenr0);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't write code region 0 size[UICR]");
-			return res;
-		}
-
-	} else {
-		LOG_ERROR("You need to perform chip erase before changing the protection settings");
-	}
-
-	nrf51_protect_check(bank);
-
+	LOG_ERROR("Not currently implemented for nRF52");
 	return ERROR_OK;
 }
 
-static struct flash_sector *nrf51_find_sector_by_address(struct flash_bank *bank, uint32_t address)
+static struct flash_sector *nrf52_find_sector_by_address(struct flash_bank *bank, uint32_t address)
 {
-	struct nrf51_info *chip = bank->driver_priv;
+	struct nrf52_info *chip = bank->driver_priv;
 	assert(chip != NULL);
 
 	for (int i = 0; i < bank->num_sectors; i++)
@@ -379,16 +297,16 @@ static struct flash_sector *nrf51_find_sector_by_address(struct flash_bank *bank
 	return NULL;
 }
 
-static int nrf51_erase_all(struct nrf51_info *chip)
+static int nrf52_erase_all(struct nrf52_info *chip)
 {
 	LOG_DEBUG("Erasing all non-volatile memory");
-	return nrf51_nvmc_generic_erase(chip,
-					                NRF51_NVMC_ERASEALL_ADDR,
+	return nrf52_nvmc_generic_erase(chip,
+					                NRF52_NVMC_ERASEALL_ADDR,
 					                0x01);
 }
 
-static int nrf51_erase_page(struct flash_bank *bank,
-							struct nrf51_info *chip,
+static int nrf52_erase_page(struct flash_bank *bank,
+							struct nrf52_info *chip,
 							struct flash_sector *sector)
 {
 	int res;
@@ -399,44 +317,22 @@ static int nrf51_erase_page(struct flash_bank *bank,
 		return ERROR_FAIL;
 	}
 
-	if (bank->base == NRF51_UICR_BASE_ADDR) {
-		uint32_t ppfc;
-		res = target_read_u32(chip->target, NRF51_FICR_PPFC_ADDR,
-				      &ppfc);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read PPFC register");
-			return res;
-		}
-
-		if ((ppfc & 0xFF) == 0xFF) {
-			/* We can't erase the UICR.  Double-check to
-			   see if it's already erased before complaining. */
-			default_flash_blank_check(bank);
-			if (sector->is_erased == 1)
-				return ERROR_OK;
-
-			LOG_ERROR("The chip was not pre-programmed with SoftDevice stack and UICR cannot be erased separately. Please issue mass erase before trying to write to this region");
-			return ERROR_FAIL;
-		}
-
-		res = nrf51_nvmc_generic_erase(chip,
-					       NRF51_NVMC_ERASEUICR_ADDR,
-					       0x00000001);
-
-
+	if (bank->base == NRF52_UICR_BASE_ADDR) {
+		res = nrf52_nvmc_generic_erase(chip,
+					                   NRF52_NVMC_ERASEUICR_ADDR,
+					                   0x00000001);
 	} else {
-		res = nrf51_nvmc_generic_erase(chip,
-					                   NRF51_NVMC_ERASEPAGE_ADDR,
+		res = nrf52_nvmc_generic_erase(chip,
+					                   NRF52_NVMC_ERASEPAGE_ADDR,
 					                   sector->offset);
 	}
 
 	if (res == ERROR_OK)
 		sector->is_erased = 1;
-
 	return res;
 }
 
-static const uint8_t nrf51_flash_write_code[] = {
+static const uint8_t nrf52_flash_write_code[] = {
 	/* See contrib/loaders/flash/cortex-m0.S */
 /* <wait_fifo>: */
 	0x0d, 0x68,		/* ldr	r5,	[r1,	#0] */
@@ -461,13 +357,13 @@ static const uint8_t nrf51_flash_write_code[] = {
 
 
 /* Start a low level flash write for the specified region */
-static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const uint8_t *buffer, uint32_t bytes)
+static int nrf52_ll_flash_write(struct nrf52_info *chip, uint32_t offset, const uint8_t *buffer, uint32_t bytes)
 {
 	struct target *target = chip->target;
 	uint32_t buffer_size = 8192;
 	struct working_area *write_algorithm;
 	struct working_area *source;
-	uint32_t address = NRF51_FLASH_BASE_ADDR + offset;
+	uint32_t address = NRF52_FLASH_BASE_ADDR + offset;
 	struct reg_param reg_params[4];
 	struct armv7m_algorithm armv7m_info;
 	int retval = ERROR_OK;
@@ -476,7 +372,7 @@ static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const 
 	assert(bytes % 4 == 0);
 
 	/* allocate working area with flash programming code */
-	if (target_alloc_working_area(target, sizeof(nrf51_flash_write_code),
+	if (target_alloc_working_area(target, sizeof(nrf52_flash_write_code),
 			&write_algorithm) != ERROR_OK) {
 		LOG_WARNING("no working area available, falling back to slow memory writes");
 
@@ -485,7 +381,7 @@ static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const 
 			if (retval != ERROR_OK)
 				return retval;
 
-			retval = nrf51_wait_for_nvmc(chip);
+			retval = nrf52_wait_for_nvmc(chip);
 			if (retval != ERROR_OK)
 				return retval;
 
@@ -498,11 +394,11 @@ static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const 
 
 	LOG_WARNING("using fast async flash loader. This is currently supported");
 	LOG_WARNING("only with ST-Link and CMSIS-DAP. If you have issues, add");
-	LOG_WARNING("\"set WORKAREASIZE 0\" before sourcing nrf51.cfg to disable it");
+	LOG_WARNING("\"set WORKAREASIZE 0\" before sourcing nrf52.cfg to disable it");
 
 	retval = target_write_buffer(target, write_algorithm->address,
-				sizeof(nrf51_flash_write_code),
-				nrf51_flash_write_code);
+				sizeof(nrf52_flash_write_code),
+				nrf52_flash_write_code);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -553,13 +449,13 @@ static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const 
 /* Check and erase flash sectors in specified range, then start a low level page write.
    start/end must be sector aligned.
 */
-static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t end, const uint8_t *buffer)
+static int nrf52_write_pages(struct flash_bank *bank, uint32_t start, uint32_t end, const uint8_t *buffer)
 {
 	int res;
 	struct flash_sector *sector;
 	uint32_t offset;
 
-	struct nrf51_info *chip = bank->driver_priv;
+	struct nrf52_info *chip = bank->driver_priv;
 	assert(chip != NULL);
 
 	assert(start % chip->code_page_size == 0);
@@ -567,7 +463,7 @@ static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t e
 
 	/* Erase all sectors */
 	for (offset = start; offset < end; offset += chip->code_page_size) {
-		sector = nrf51_find_sector_by_address(bank, offset);
+		sector = nrf52_find_sector_by_address(bank, offset);
 		
 		if (sector == NULL) {
 			LOG_ERROR("Invalid sector @ 0x%08"PRIx32, offset);
@@ -580,7 +476,7 @@ static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t e
 		}
 
 		if (sector->is_erased != 1) {	/* 1 = erased, 0= not erased, -1 = unknown */
-			res = nrf51_erase_page(bank, chip, sector);
+			res = nrf52_erase_page(bank, chip, sector);
 			if (res != ERROR_OK) {
 				LOG_ERROR("Failed to erase sector @ 0x%08"PRIx32, sector->offset);
 				return res;
@@ -589,35 +485,35 @@ static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t e
 		sector->is_erased = 0;
 	}
 
-	res = nrf51_nvmc_write_enable(chip);
+	res = nrf52_nvmc_write_enable(chip);
 	if (res != ERROR_OK)
 		return res;
 
-	res = nrf51_ll_flash_write(chip, start, buffer, (end - start));
+	res = nrf52_ll_flash_write(chip, start, buffer, (end - start));
 	if (res != ERROR_OK)
 		LOG_ERROR("Failed to write FLASH");
 
-	return nrf51_nvmc_read_only(chip);
+	return nrf52_nvmc_read_only(chip);
 }
 
-static int nrf51_erase(struct flash_bank *bank, int first, int last)
+static int nrf52_erase(struct flash_bank *bank, int first, int last)
 {
 	int res;
-	struct nrf51_info *chip;
+	struct nrf52_info *chip;
 
-	res = nrf51_get_probed_chip_if_halted(bank, &chip);
+	res = nrf52_get_probed_chip_if_halted(bank, &chip);
 	if (res != ERROR_OK)
 		return res;
 
 	/* For each sector to be erased */
 	for (int s = first; s <= last && res == ERROR_OK; s++)
-		res = nrf51_erase_page(bank, chip, &bank->sectors[s]);
+		res = nrf52_erase_page(bank, chip, &bank->sectors[s]);
 
 	return res;
 }
 
-static int nrf51_code_flash_write(struct flash_bank *bank,
-				  struct nrf51_info *chip,
+static int nrf52_code_flash_write(struct flash_bank *bank,
+				  struct nrf52_info *chip,
 				  const uint8_t *buffer, uint32_t offset, uint32_t count)
 {
 
@@ -664,27 +560,27 @@ static int nrf51_code_flash_write(struct flash_bank *bank,
 			return res;
 	}
 
-	return nrf51_write_pages(bank, first_page_offset, last_page_offset, buffer_to_flash);
+	return nrf52_write_pages(bank, first_page_offset, last_page_offset, buffer_to_flash);
 }
 
-static int nrf51_uicr_flash_write(struct flash_bank *bank,
-				  struct nrf51_info *chip,
+static int nrf52_uicr_flash_write(struct flash_bank *bank,
+				  struct nrf52_info *chip,
 				  const uint8_t *buffer, uint32_t offset, uint32_t count)
 {
 	int res;
-	uint32_t nrf51_uicr_size = chip->code_page_size;
+	uint32_t nrf52_uicr_size = chip->code_page_size;
 	uint8_t * uicr;
 	struct flash_sector *sector = &bank->sectors[0];
 
-	if ((offset + count) > nrf51_uicr_size)
+	if ((offset + count) > nrf52_uicr_size)
 		return ERROR_FAIL;
 
-	uicr = calloc(nrf51_uicr_size, sizeof(uint8_t));
+	uicr = calloc(nrf52_uicr_size, sizeof(uint8_t));
 
 	res = target_read_memory(bank->target,
-				 NRF51_UICR_BASE_ADDR,
+				 NRF52_UICR_BASE_ADDR,
 				 1,
-				 nrf51_uicr_size,
+				 nrf52_uicr_size,
 				 uicr);
 
 	if (res != ERROR_OK)
@@ -694,7 +590,7 @@ static int nrf51_uicr_flash_write(struct flash_bank *bank,
 	}
 
 	if (sector->is_erased != 1) {
-		res = nrf51_erase_page(bank, chip, sector);
+		res = nrf52_erase_page(bank, chip, sector);
 		if (res != ERROR_OK)
 		{
 			free(uicr);
@@ -702,7 +598,7 @@ static int nrf51_uicr_flash_write(struct flash_bank *bank,
 		}
 	}
 
-	res = nrf51_nvmc_write_enable(chip);
+	res = nrf52_nvmc_write_enable(chip);
 	if (res != ERROR_OK)
 	{
 		free(uicr);
@@ -711,25 +607,25 @@ static int nrf51_uicr_flash_write(struct flash_bank *bank,
 
 	memcpy(&uicr[offset], buffer, count);
 
-	res = nrf51_ll_flash_write(chip, NRF51_UICR_BASE_ADDR, uicr, nrf51_uicr_size);
+	res = nrf52_ll_flash_write(chip, NRF52_UICR_BASE_ADDR, uicr, nrf52_uicr_size);
 	if (res != ERROR_OK) {
-		nrf51_nvmc_read_only(chip);
+		nrf52_nvmc_read_only(chip);
 		free(uicr);
 		return res;
 	}
 
 	free(uicr);
-	return nrf51_nvmc_read_only(chip);
+	return nrf52_nvmc_read_only(chip);
 }
 
 
-static int nrf51_write(struct flash_bank *bank, const uint8_t *buffer,
+static int nrf52_write(struct flash_bank *bank, const uint8_t *buffer,
 		       uint32_t offset, uint32_t count)
 {
 	int res;
-	struct nrf51_info *chip;
+	struct nrf52_info *chip;
 
-	res = nrf51_get_probed_chip_if_halted(bank, &chip);
+	res = nrf52_get_probed_chip_if_halted(bank, &chip);
 	if (res != ERROR_OK)
 		return res;
 
@@ -737,15 +633,15 @@ static int nrf51_write(struct flash_bank *bank, const uint8_t *buffer,
 }
 
 
-FLASH_BANK_COMMAND_HANDLER(nrf51_flash_bank_command)
+FLASH_BANK_COMMAND_HANDLER(nrf52_flash_bank_command)
 {
-	static struct nrf51_info *chip;
+	static struct nrf52_info *chip;
 
 	switch (bank->base) {
-	case NRF51_FLASH_BASE_ADDR:
+	case NRF52_FLASH_BASE_ADDR:
 		bank->bank_number = 0;
 		break;
-	case NRF51_UICR_BASE_ADDR:
+	case NRF52_UICR_BASE_ADDR:
 		bank->bank_number = 1;
 		break;
 	default:
@@ -763,11 +659,11 @@ FLASH_BANK_COMMAND_HANDLER(nrf51_flash_bank_command)
 	}
 
 	switch (bank->base) {
-	case NRF51_FLASH_BASE_ADDR:
-		chip->bank[bank->bank_number].write = nrf51_code_flash_write;
+	case NRF52_FLASH_BASE_ADDR:
+		chip->bank[bank->bank_number].write = nrf52_code_flash_write;
 		break;
-	case NRF51_UICR_BASE_ADDR:
-		chip->bank[bank->bank_number].write = nrf51_uicr_flash_write;
+	case NRF52_UICR_BASE_ADDR:
+		chip->bank[bank->bank_number].write = nrf52_uicr_flash_write;
 		break;
 	}
 
@@ -777,56 +673,41 @@ FLASH_BANK_COMMAND_HANDLER(nrf51_flash_bank_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(nrf51_handle_mass_erase_command)
+COMMAND_HANDLER(nrf52_handle_mass_erase_command)
 {
 	int res;
 	struct flash_bank *bank = NULL;
 	struct target *target = get_current_target(CMD_CTX);
 
-	res = get_flash_bank_by_addr(target, NRF51_FLASH_BASE_ADDR, true, &bank);
+	res = get_flash_bank_by_addr(target, NRF52_FLASH_BASE_ADDR, true, &bank);
 	if (res != ERROR_OK)
 		return res;
 
 	assert(bank != NULL);
 
-	struct nrf51_info *chip;
+	struct nrf52_info *chip;
 
-	res = nrf51_get_probed_chip_if_halted(bank, &chip);
+	res = nrf52_get_probed_chip_if_halted(bank, &chip);
 	if (res != ERROR_OK)
 		return res;
 
-	uint32_t ppfc;
-
-	res = target_read_u32(target, NRF51_FICR_PPFC_ADDR,
-			      &ppfc);
-	if (res != ERROR_OK) {
-		LOG_ERROR("Couldn't read PPFC register");
-		return res;
-	}
-
-	if ((ppfc & 0xFF) == 0x00) {
-		LOG_ERROR("Code region 0 size was pre-programmed at the factory, "
-			  "mass erase command won't work.");
-		return ERROR_FAIL;
-	}
-
-	res = nrf51_erase_all(chip);
+	res = nrf52_erase_all(chip);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to erase the chip");
-		nrf51_protect_check(bank);
+		nrf52_protect_check(bank);
 		return res;
 	}
 
 	for (int i = 0; i < bank->num_sectors; i++)
 		bank->sectors[i].is_erased = 1;
 
-	res = nrf51_protect_check(bank);
+	res = nrf52_protect_check(bank);
 	if (res != ERROR_OK) {
 		LOG_ERROR("Failed to check chip's write protection");
 		return res;
 	}
 
-	res = get_flash_bank_by_addr(target, NRF51_UICR_BASE_ADDR, true, &bank);
+	res = get_flash_bank_by_addr(target, NRF52_UICR_BASE_ADDR, true, &bank);
 	if (res != ERROR_OK)
 		return res;
 
@@ -835,12 +716,12 @@ COMMAND_HANDLER(nrf51_handle_mass_erase_command)
 	return ERROR_OK;
 }
 
-static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
+static int nrf52_info(struct flash_bank *bank, char *buf, int buf_size)
 {
 	int res;
-	struct nrf51_info *chip;
+	struct nrf52_info *chip;
 
-	res = nrf51_get_probed_chip_if_halted(bank, &chip); // TODO: Why do we need this function call?
+	res = nrf52_get_probed_chip_if_halted(bank, &chip); // TODO: Why do we need this function call?
 	if (res != ERROR_OK)
 		return res;
 
@@ -848,13 +729,8 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		const uint32_t address;
 		uint32_t value;
 	} ficr[] = {
-		{ .address = NRF51_FICR_CODEPAGESIZE_ADDR	},
-		{ .address = NRF51_FICR_CODESIZE_ADDR	},
-		{ .address = NRF51_FICR_CLENR0_ADDR		},
-		{ .address = NRF51_FICR_PPFC_ADDR		},
-	}, uicr[] = {
-		{ .address = NRF51_UICR_CLENR0_ADDR,		},
-		{ .address = NRF51_UICR_RBPCONF_ADDR		},
+		{ .address = NRF52_FICR_CODEPAGESIZE_ADDR	},
+		{ .address = NRF52_FICR_CODESIZE_ADDR	},
 	};
 
 	for (size_t i = 0; i < (sizeof(ficr) / sizeof(ficr[0])); i++) {
@@ -866,66 +742,48 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		}
 	}
 
-	for (size_t i = 0; i < (sizeof(uicr) / sizeof(uicr[0])); i++) {
-		res = target_read_u32(chip->target, uicr[i].address,
-				      &uicr[i].value);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read %" PRIx32, uicr[i].address);
-			return res;
-		}
-	}
-
 	snprintf(buf, buf_size,
 		 "\n[factory information control block]\n\n"
 		 "code page size: %"PRIu32"B\n"
-		 "code memory size: %"PRIu32"kB\n"
-		 "code region 0 size: %"PRIu32"kB\n"
-		 "pre-programmed code: %s\n"
-		 "\n[user information control block]\n\n"
-		 "code region 0 size: %"PRIu32"kB\n"
-		 "read back protection configuration: %"PRIx32"\n",
+		 "code memory size: %"PRIu32"kB\n",
 		 ficr[0].value,
-		 (ficr[1].value * ficr[0].value) / 1024,
-		 (ficr[2].value == 0xFFFFFFFF) ? 0 : ficr[2].value / 1024,
-		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present",
-		 (uicr[0].value == 0xFFFFFFFF) ? 0 : uicr[0].value / 1024,
-		 uicr[1].value & 0xFFFF); // TODO: Should any other info be printed here?
+		 (ficr[1].value * ficr[0].value) / 1024);
 
 	return ERROR_OK;
 }
 
-static const struct command_registration nrf51_exec_command_handlers[] = {
+static const struct command_registration nrf52_exec_command_handlers[] = {
 	{
 		.name		= "mass_erase",
-		.handler	= nrf51_handle_mass_erase_command,
+		.handler	= nrf52_handle_mass_erase_command,
 		.mode		= COMMAND_EXEC,
 		.help		= "Erase all flash contents of the chip.",
 	},
 	COMMAND_REGISTRATION_DONE
 };
 
-static const struct command_registration nrf51_command_handlers[] = {
+static const struct command_registration nrf52_command_handlers[] = {
 	{
-		.name	= "nrf51",
+		.name	= "nrf52",
 		.mode	= COMMAND_ANY,
-		.help	= "nrf51 flash command group",
+		.help	= "nrf52 flash command group",
 		.usage	= "",
-		.chain	= nrf51_exec_command_handlers,
+		.chain	= nrf52_exec_command_handlers,
 	},
 	COMMAND_REGISTRATION_DONE
 };
 
-struct flash_driver nrf51_flash = {
-	.name			    = "nrf51",
-	.commands		    = nrf51_command_handlers,
-	.flash_bank_command	= nrf51_flash_bank_command,
-	.info			    = nrf51_info,
-	.erase			    = nrf51_erase,
-	.protect		    = nrf51_protect,
-	.write			    = nrf51_write,
+struct flash_driver nrf52_flash = {
+	.name			    = "nrf52",
+	.commands		    = nrf52_command_handlers,
+	.flash_bank_command	= nrf52_flash_bank_command,
+	.info			    = nrf52_info,
+	.erase			    = nrf52_erase,
+	.protect		    = nrf52_protect,
+	.write			    = nrf52_write,
 	.read			    = default_flash_read,
-	.probe			    = nrf51_probe,
-	.auto_probe		    = nrf51_auto_probe,
+	.probe			    = nrf52_probe,
+	.auto_probe		    = nrf52_auto_probe,
 	.erase_check	    = default_flash_blank_check,
-	.protect_check	    = nrf51_protect_check,
+	.protect_check	    = nrf52_protect_check,
 };
