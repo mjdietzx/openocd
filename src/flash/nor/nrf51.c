@@ -29,6 +29,7 @@
 #include <target/armv7m.h>
 #include <helper/types.h>
 
+/* nRF5 Register addresses. */
 #define NRF51_FLASH_BASE_ADDR        (0x0)
 
 #define NRF51_FICR_BASE_ADDR         (0x10000000)
@@ -48,61 +49,68 @@
 #define NRF51_NVMC_ERASEALL_ADDR     (NRF51_NVMC_BASE_ADDR | 0x50C)
 #define NRF51_NVMC_ERASEUICR_ADDR    (NRF51_NVMC_BASE_ADDR | 0x514)
 
+/* nRF52 bit fields. */
 enum nrf51_nvmc_config_bits {
 	NRF51_NVMC_CONFIG_REN = 0x0,
 	NRF51_NVMC_CONFIG_WEN = 0x01,
-	NRF51_NVMC_CONFIG_EEN = 0x02,
+	NRF51_NVMC_CONFIG_EEN = 0x02
 };
 
-#define NRF51_NVMC_READY             (0x01)
+enum nrf51_nvmc_ready_bits {
+	NRF51_NVMC_BUSY  = 0x0,
+	NRF51_NVMC_READY = 0x01
+};
 
+/* nRF5 state information. */
 struct nrf51_info {
-	uint32_t code_page_size;
-	uint32_t code_memory_size;
+	uint32_t code_page_size; /* Size of FLASH page in bytes. */
+	uint32_t code_memory_size; /* Size of Code FLASH region = code_page_size * NUMBER_OF_PAGES_IN_CODE_FLASH. */
 
 	struct {
 		bool probed;
 		int (*write) (struct flash_bank *bank,
 			          struct nrf51_info *chip,
 			          const uint8_t *buffer, uint32_t offset, uint32_t count);
-	} bank[2];
+	} bank[2]; /* There are two regions in nRF5 FLASH - Code and UICR. */
 	struct target *target;
 };
+
 
 static int nrf51_protect_check(struct flash_bank *bank);
 
 static int nrf51_probe(struct flash_bank *bank)
 {
 	int res;
-
+	uint32_t number_of_pages_in_code_flash;
 	struct nrf51_info *chip = bank->driver_priv;
 
+	res = target_read_u32(chip->target,
+			              NRF51_FICR_CODEPAGESIZE_ADDR,
+				          &chip->code_page_size);
+	if (res != ERROR_OK) {
+		LOG_ERROR("Couldn't read code page size");
+		return res;
+	}
+
+	res = target_read_u32(chip->target,
+			              NRF51_FICR_CODESIZE_ADDR,
+			              &number_of_pages_in_code_flash);
+	if (res != ERROR_OK) {
+		LOG_ERROR("Couldn't read code memory size");
+		return res;
+	}
+
+	chip->code_memory_size = chip->code_page_size * number_of_pages_in_code_flash;
+
 	if (bank->base == NRF51_FLASH_BASE_ADDR) {
-		res = target_read_u32(chip->target,
-			                  NRF51_FICR_CODEPAGESIZE_ADDR,
-				              &chip->code_page_size);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read code page size");
-			return res;
-		}
-
-		res = target_read_u32(chip->target,
-			                  NRF51_FICR_CODESIZE_ADDR,
-			                  &chip->code_memory_size); // TODO: This is only page size.
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read code memory size");
-			return res;
-		}
-
-		bank->size = chip->code_memory_size * 1024;
+		bank->size = chip->code_memory_size;
 		bank->num_sectors = bank->size / chip->code_page_size;
 		bank->sectors = calloc(bank->num_sectors,
 				               sizeof((bank->sectors)[0]));
 		if (!bank->sectors)
 			return ERROR_FLASH_BANK_NOT_PROBED;
 
-		/* Fill out the sector information: All NRF51 sectors are the same size and
-		 * there is always a fixed number of them. */
+		/* Fill out the sector information: All nRF51 sectors are the same size. */
 		for (int i = 0; i < bank->num_sectors; i++) {
 			bank->sectors[i].size = chip->code_page_size;
 			bank->sectors[i].offset	= i * chip->code_page_size;
@@ -116,16 +124,8 @@ static int nrf51_probe(struct flash_bank *bank)
 
 		chip->bank[0].probed = true;
 	}
-	else {
-
-		res = target_read_u32(chip->target,
-			                  NRF51_FICR_CODEPAGESIZE_ADDR,
-				              &bank->size);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Couldn't read code page size");
-			return res;
-		}
-
+	else { /* This is the UICR bank. */
+		bank->size = chip->code_page_size;
 		bank->num_sectors = 1;
 		bank->sectors = calloc(bank->num_sectors,
 				               sizeof((bank->sectors)[0]));
@@ -135,7 +135,6 @@ static int nrf51_probe(struct flash_bank *bank)
 		bank->sectors[0].size = bank->size;
 		bank->sectors[0].offset	= 0;
 
-		/* mark as unknown */
 		bank->sectors[0].is_erased = -1;
 		bank->sectors[0].is_protected = -1;
 
@@ -851,14 +850,13 @@ COMMAND_HANDLER(nrf51_handle_mass_erase_command)
 static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 {
 	int res;
-
 	struct nrf51_info *chip;
 
-	res = nrf51_get_probed_chip_if_halted(bank, &chip);
+	res = nrf51_get_probed_chip_if_halted(bank, &chip); // TODO: Why do we need this function call?
 	if (res != ERROR_OK)
 		return res;
 
-	static struct {
+	static struct { // TODO: Clean this up.
 		const uint32_t address;
 		uint32_t value;
 	} ficr[] = {
@@ -903,7 +901,7 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		 (ficr[2].value == 0xFFFFFFFF) ? 0 : ficr[2].value / 1024,
 		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present",
 		 (uicr[0].value == 0xFFFFFFFF) ? 0 : uicr[0].value / 1024,
-		 uicr[1].value & 0xFFFF);
+		 uicr[1].value & 0xFFFF); // TODO: Should any other info be printed here?
 
 	return ERROR_OK;
 }
@@ -930,16 +928,16 @@ static const struct command_registration nrf51_command_handlers[] = {
 };
 
 struct flash_driver nrf51_flash = {
-	.name			= "nrf51",
-	.commands		= nrf51_command_handlers,
+	.name			    = "nrf51",
+	.commands		    = nrf51_command_handlers,
 	.flash_bank_command	= nrf51_flash_bank_command,
-	.info			= nrf51_info,
-	.erase			= nrf51_erase,
-	.protect		= nrf51_protect,
-	.write			= nrf51_write,
-	.read			= default_flash_read,
-	.probe			= nrf51_probe,
-	.auto_probe		= nrf51_auto_probe,
-	.erase_check	= default_flash_blank_check,
-	.protect_check	= nrf51_protect_check,
+	.info			    = nrf51_info,
+	.erase			    = nrf51_erase,
+	.protect		    = nrf51_protect,
+	.write			    = nrf51_write,
+	.read			    = default_flash_read,
+	.probe			    = nrf51_probe,
+	.auto_probe		    = nrf51_auto_probe,
+	.erase_check	    = default_flash_blank_check,
+	.protect_check	    = nrf51_protect_check,
 };
