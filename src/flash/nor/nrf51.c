@@ -82,7 +82,9 @@ static int nrf51_probe(struct flash_bank *bank)
 {
 	int res;
 	uint32_t number_of_pages_in_code_flash;
+	
 	struct nrf51_info *chip = bank->driver_priv;
+	assert(chip != NULL);
 
 	res = target_read_u32(chip->target,
 			              NRF51_FICR_CODEPAGESIZE_ADDR,
@@ -160,6 +162,7 @@ static int nrf51_auto_probe(struct flash_bank *bank)
 		return ERROR_OK;
 }
 
+// TODO: look into this function...
 static int nrf51_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf51_info **chip)
 {
 	if (bank->target->state != TARGET_HALTED) {
@@ -174,8 +177,8 @@ static int nrf51_get_probed_chip_if_halted(struct flash_bank *bank, struct nrf51
 
 static int nrf51_wait_for_nvmc(struct nrf51_info *chip)
 {
-	uint32_t ready;
 	int res;
+	uint32_t ready;
 	int timeout = 100;
 
 	do {
@@ -269,7 +272,7 @@ static int nrf51_nvmc_generic_erase(struct nrf51_info *chip,
 			       		   erase_register,
 			               erase_value);
 
-	if (res != ERROR_OK) {
+	if (res != ERROR_OK) { // TODO: This error checking is not very helpful...
 		nrf51_nvmc_read_only(chip);
 		return res;
 	}	
@@ -852,6 +855,8 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 	int res;
 	struct nrf51_info *chip;
 
+	LOG_ERROR("Is flashed probed? %d", nrf51_bank_is_probed(bank));
+
 	res = nrf51_get_probed_chip_if_halted(bank, &chip); // TODO: Why do we need this function call?
 	if (res != ERROR_OK)
 		return res;
@@ -897,7 +902,7 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		 "code region 0 size: %"PRIu32"kB\n"
 		 "read back protection configuration: %"PRIx32"\n",
 		 ficr[0].value,
-		 ficr[1].value,
+		 (ficr[1].value * ficr[0].value) / 1024,
 		 (ficr[2].value == 0xFFFFFFFF) ? 0 : ficr[2].value / 1024,
 		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present",
 		 (uicr[0].value == 0xFFFFFFFF) ? 0 : uicr[0].value / 1024,
